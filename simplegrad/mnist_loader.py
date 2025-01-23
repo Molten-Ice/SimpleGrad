@@ -8,21 +8,16 @@ and ``load_data_wrapper``.  In practice, ``load_data_wrapper`` is the
 function usually called by our neural network code.
 """
 
-#### Libraries
-# Standard library
-import pickle
+import time
 import gzip
-
-# Third-party libraries
-# import numpy as np
+import pickle
 from tensor import Tensor
 
-def load_data(parent_dir=False):
+def load_data(parent_dir=False, slice_training=None, slice_test=None, mini=False):
     """Return the MNIST data as a tuple containing the training data,
     the validation data, and the test data.
 
 
-print(load_data_wrapper()[0])
     The ``training_data`` is returned as a tuple with two entries.
     The first entry contains the actual training images.  This is a
     numpy ndarray with 50,000 entries.  Each entry is, in turn, a
@@ -43,14 +38,36 @@ print(load_data_wrapper()[0])
     below.
     """
     parent_dir_string = '' if parent_dir else '../'
-    f = gzip.open(f'{parent_dir_string}data/mnist.pkl.gz', 'rb')
+    base_path = 'mini_mnist.pkl.gz' if mini else 'mnist.pkl.gz'
+    f = gzip.open(f'{parent_dir_string}data/{base_path}', 'rb')
     u = pickle._Unpickler(f)
     u.encoding = 'latin1'
     training_data, validation_data, test_data = u.load()
     f.close()
+
+    if slice_training:
+        training_data = (training_data[0][:slice_training], training_data[1][:slice_training])
+
+    if slice_test:
+        test_data = (test_data[0][:slice_test], test_data[1][:slice_test])
+        validation_data = (validation_data[0][:slice_test], validation_data[1][:slice_test])
+
     return (training_data, validation_data, test_data)
 
-def load_data_wrapper(parent_dir=False):
+
+def create_mini_mnist(output_path='data/mini_mnist.pkl.gz', training_size=3000, eval_test_size=1000, parent_dir=False):
+    # Load the full dataset with specified slices
+    training_data, validation_data, test_data = load_data(
+        slice_training=training_size,
+        slice_test=eval_test_size,
+        parent_dir=parent_dir
+    )
+
+    with gzip.open(output_path, 'wb') as f:
+        pickle.dump((training_data, validation_data, test_data), f)
+
+
+def load_data_wrapper(parent_dir=False, device=None, slice_training=None, slice_test=None, mini=False):
     """Return a tuple containing ``(training_data, validation_data,
     test_data)``. Based on ``load_data``, but the format is more
     convenient for use in our implementation of neural networks.
@@ -71,21 +88,23 @@ def load_data_wrapper(parent_dir=False):
     the training data and the validation / test data.  These formats
     turn out to be the most convenient for use in our neural network
     code."""
-    tr_d, va_d, te_d = load_data(parent_dir)
-    training_inputs = [Tensor(x).reshape(784, 1) for x in tr_d[0]]
-    training_results = [vectorized_result(y) for y in tr_d[1]]
+    tr_d, va_d, te_d = load_data(parent_dir, slice_training, slice_test, mini)
+    training_inputs = [Tensor(x, device=device).reshape(784, 1) for x in tr_d[0]]
+    validation_inputs = [Tensor(x, device=device).reshape(784, 1) for x in va_d[0]]
+    test_inputs = [Tensor(x, device=device).reshape(784, 1) for x in te_d[0]]
+    
+    training_results = [vectorized_result(y, device=device) for y in tr_d[1]]
     training_data = list(zip(training_inputs, training_results))
-    validation_inputs = [Tensor(x).reshape(784, 1) for x in va_d[0]]
-    validation_data = list(zip(validation_inputs, va_d[1]))
-    test_inputs = [Tensor(x).reshape(784, 1) for x in te_d[0]]
-    test_data = list(zip(test_inputs, te_d[1]))
+    validation_data = list(zip(validation_inputs, [Tensor([y], device=device) for y in va_d[1]]))
+    test_data = list(zip(test_inputs, [Tensor([y], device=device) for y in te_d[1]]))
+
     return (training_data, validation_data, test_data)
 
-def vectorized_result(j):
+def vectorized_result(j, device=None):
     """Return a 10-dimensional unit vector with a 1.0 in the jth
     position and zeroes elsewhere.  This is used to convert a digit
     (0...9) into a corresponding desired output from the neural
     network."""
-    e = Tensor.zeros(10, 1)
+    e = Tensor.zeros(10, 1, device=device)
     e.data[j] = 1.0
     return e

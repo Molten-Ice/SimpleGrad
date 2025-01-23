@@ -56,14 +56,12 @@ class Network(object):
         self.num_layers = len(sizes)
         self.sizes = sizes
         self.biases = [Tensor.randn(y, 1) for y in sizes[1:]]
-        self.weights = [Tensor.randn(y, x)
-                        for x, y in zip(sizes[:-1], sizes[1:])]
+        self.weights = [Tensor.randn(y, x) for x, y in zip(sizes[:-1], sizes[1:])]
         
         self.activation_function = Sigmoid()
 
         # Xavier/Glorot (for tanh/sigmoid)
         # - **Normal**: $W \sim \mathcal{N}(0, \sqrt{\frac{2}{n_{in} + n_{out}}})$
-        print("Using Xavier/Glorot initialization for sigmoid")
         for i in range(len(self.weights)):
             std = math.sqrt(1/self.weights[i].shape[1])  # shape[1] is n_in
             self.weights[i] = std *self.weights[i] * std
@@ -76,7 +74,7 @@ class Network(object):
         return a
 
     def SGD(self, training_data, epochs, mini_batch_size, eta,
-            test_data=None, test_slice=1000):
+            test_data=None, test_interval=None):
         """Train the neural network using mini-batch stochastic
         gradient descent.  The ``training_data`` is a list of tuples
         ``(x, y)`` representing the training inputs and the desired
@@ -97,14 +95,13 @@ class Network(object):
                 for k in range(0, n, mini_batch_size)]
             for k, mini_batch in enumerate(mini_batches):
                 self.update_mini_batch(mini_batch, eta)
-                if k % 10 == 0:
-                    print(f'[{k*mini_batch_size}/{n}]: {self.evaluate(test_data[:test_slice])} / {test_slice} correct')
+                if test_interval is not None and k % test_interval == 0:
+                    print(f'[{k*mini_batch_size}/{n}]: {self.evaluate(test_data, batch_size=test_interval)} / {len(test_data)} correct')
 
-            time2 = time.time()
             if test_data:
-                print(f"Epoch {j}: {self.evaluate(test_data)} / {len(test_data)}, took {time2-time1:.2f} seconds")
+                print(f"Epoch {j}: {self.evaluate(test_data)} / {len(test_data)}, took {time.time()-time1:.2f} seconds")
             else:
-                print(f"Epoch {j} complete in {time2-time1:.2f} seconds")
+                print(f"Epoch {j} complete in {time.time()-time1:.2f} seconds")
 
 
     def update_mini_batch(self, mini_batch, eta):
@@ -112,16 +109,15 @@ class Network(object):
         gradient descent using backpropagation to a single mini batch.
         The ``mini_batch`` is a list of tuples ``(x, y)``, and ``eta``
         is the learning rate."""
-        nabla_b = [Tensor.zeros(b.shape) for b in self.biases]
-        nabla_w = [Tensor.zeros(w.shape) for w in self.weights]
-        for x, y in mini_batch:
-            delta_nabla_b, delta_nabla_w = self.backprop(x, y)
-            nabla_b = [nb+dnb for nb, dnb in zip(nabla_b, delta_nabla_b)]
-            nabla_w = [nw+dnw for nw, dnw in zip(nabla_w, delta_nabla_w)]
-        self.weights = [w-(eta/len(mini_batch))*nw
-                        for w, nw in zip(self.weights, nabla_w)]
-        self.biases = [b-(eta/len(mini_batch))*nb
-                       for b, nb in zip(self.biases, nabla_b)]
+        scaled_eta = eta/len(mini_batch)
+
+        xb = Tensor.stack([x for x, _ in mini_batch], dim=0)
+        yb = Tensor.stack([y for _, y in mini_batch], dim=0)
+        nabla_b, nabla_w = self.backprop(xb, yb)
+        
+        self.weights = [w-scaled_eta*nw for w, nw in zip(self.weights, nabla_w)]
+        self.biases = [b-scaled_eta*nb for b, nb in zip(self.biases, nabla_b)]
+        
 
     def backprop(self, x, y):
         """Return a tuple ``(nabla_b, nabla_w)`` representing the
@@ -143,7 +139,17 @@ class Network(object):
         delta = self.cost_derivative(activations[-1], y) * \
             self.activation_function.derivative(zs[-1])
         nabla_b[-1] = delta
-        nabla_w[-1] = delta @ activations[-2].transpose()
+
+        # xb.shape: torch.Size([10, 784, 1]), yb.shape: torch.Size([10, 10, 1]) 
+        # Original
+        # delta.shape: torch.Size([10, 1]), activations[-2].shape: torch.Size([10, 1])
+        # activations[-2].transpose().shape: torch.Size([1, 10])
+        # Batch:
+        # delta.shape: torch.Size([10, 10, 1]), activations[-2].shape: torch.Size([10, 10, 1])
+        # activations[-2].transpose().shape: torch.Size([10, 10, 1])
+
+        nabla_w[-1] = delta @ activations[-2].transpose(-2, -1)
+        # nabla_w[-1] = delta @ activations[-2].transpose()
         # Note that the variable l in the loop below is used a little
         # differently to the notation in Chapter 2 of the book.  Here,
         # l = 1 means the last layer of neurons, l = 2 is the
@@ -155,8 +161,10 @@ class Network(object):
             sp = self.activation_function.derivative(z)
             delta = self.weights[-l+1].transpose() @ delta * sp
             nabla_b[-l] = delta
-            nabla_w[-l] = delta @ activations[-l-1].transpose()
-        return (nabla_b, nabla_w)
+            nabla_w[-l] = delta @ activations[-l-1].transpose(-2, -1)
+
+        return ([x.sum(dim=0) for x in nabla_b], [x.sum(dim=0) for x in nabla_w])
+    
 
     def cost_derivative(self, output_activations, y):
         """Return the vector of partial derivatives \partial C_x /
@@ -164,11 +172,34 @@ class Network(object):
         return (output_activations-y)
     
 
-    def evaluate(self, test_data):
+    def evaluate(self, test_data, batch_size=128):
         """Return the number of test inputs for which the neural
         network outputs the correct result. Note that the neural
         network's output is assumed to be the index of whichever
-        neuron in the final layer has the highest activation."""
-        test_results = [(self.feedforward(x).argmax(), y)
-                        for (x, y) in test_data]
-        return sum(int(x == y) for (x, y) in test_results)
+        neuron in the final layer has the highest activation.
+        
+        Args:
+            test_data: List of (x, y) tuples containing test inputs and labels
+            batch_size: Size of batches to process at once (default: 32)
+        """
+        
+        correct = 0
+        for i in range(0, len(test_data), batch_size):
+            batch = test_data[i:i + batch_size]
+            x = Tensor.stack([x for x, _ in batch])
+            y = Tensor.stack([y for _, y in batch]).squeeze(dim=1).tolist()
+            
+            outputs = self.feedforward(x)
+            predictions = outputs.argmax(dim=1).squeeze(dim=1).tolist()
+            correct += sum(int(pred == label) for pred, label in zip(predictions, y))
+            
+        return correct
+
+    def to(self, device):
+        """Move all network parameters to specified device (e.g. 'cuda' or 'cpu')"""
+        print(f"Moving model to device: {device}")
+        self.device = device
+        if device:
+            self.weights = [w.to(device) for w in self.weights]
+            self.biases = [b.to(device) for b in self.biases]
+        return self
