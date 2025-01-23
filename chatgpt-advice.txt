@@ -1,0 +1,45 @@
+Sure, here is the text without formatting:
+
+There are a few common "gotchas" when switching from sigmoid-type activations to ReLU. In particular, networks can fail to learn with ReLU if:
+
+1. They get "stuck" in the zero-gradient region  
+   Once a unit's input z goes negative, max(0, z) is zero and its derivative is zero. If most of the neurons wind up with negative input at initialization (or after the first update or two), the gradient through those neurons becomes zero and updates effectively stop.
+
+2. The final layer is also ReLU and you're using mean-square-error or a simple (output - y) cost  
+   For typical classification tasks (like MNIST), a final "ReLU" layer plus MSE is not a good fit. Usually for classification, you'd want either:  
+   - A linear output layer + softmax + cross-entropy loss, or  
+   - A sigmoid output layer + cross-entropy loss (for binary classification), etc.  
+
+   In other words, if you are trying to do multi-class classification and your network's very last activation is ReLU(), then computing the cost as output - y may not drive learning in the way you expect. If y is a one-hot vector (e.g. [0,0,1,0,...]) and your output is often negative before applying ReLU (thus clamped to zero), you get zero derivative signals in backprop.
+
+3. Learning rate or weight initialization can cause immediate saturation  
+   Even if you do "He initialization" (which is generally correct for ReLU), if your learning rate is too high you might blow the weights up or push them quickly into a regime where all inputs become negative, again killing gradients.
+
+---
+
+What to check or change:
+
+1. Use a proper output layer for classification  
+   If your task is something like MNIST digit classification, you typically want your final layer to be:
+   z_final = w_final @ activation_{L-1} + b_final  
+   output = softmax(z_final)  
+   and a cross-entropy type loss. That combination not only works well but also avoids the "dead ReLU" problem at the final step.
+
+2. At least ensure your final layer is not ReLU (if it is a classification problem)  
+   One quick fix is to make the hidden layers ReLU but switch the last layer to a sigmoid (binary) or softmax (multi-class).
+
+3. Try a smaller learning rate  
+   If the net saturates on the first iteration, it might zero out or explode the gradients.
+
+4. Check that y is the correct shape and meaning  
+   In many examples derived from Michael Nielsen's "Neural Networks and Deep Learning" code, y is a one-hot column vector of shape (10,1). Make sure that lines like  
+   delta = (output_activations - y) * ReLU_derivative(z)  
+   do what you want. If your final layer is clamped at zero, (output_activations - y) might still have zero derivative if output_activations is also zero.
+
+---
+
+The short answer:
+
+Most often, networks "don't learn" with ReLU because of zero-derivatives in the negative region. If all or most neurons end up with negative inputs (yielding zero output, zero gradient), no updates flow back and training stalls.  
+
+Additionally, for classification tasks, you typically do not want a ReLU at the final layer plus a mean-square error. Switch to (1) a final linear layer + softmax + cross-entropy, or (2) a final sigmoid + cross-entropy if it's binary, and keep ReLU for the hidden layers. Then you should see proper gradient flow and learning.
