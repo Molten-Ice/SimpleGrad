@@ -8,6 +8,7 @@ Based on:
    - [Original repo](https://github.com/mnielsen/neural-networks-and-deep-learning)
    - [Python 3 fork](https://github.com/unexploredtest/neural-networks-and-deep-learning.git)
 
+GPU used: NVIDIA GeForce GTX 1650 Ti Max-Q GPU
 
 
 Baseline:
