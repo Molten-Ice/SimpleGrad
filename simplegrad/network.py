@@ -15,9 +15,8 @@ and omits many desirable features.
 import time
 import math
 import random
+from tensor import Tensor
 
-# Third-party libraries
-import numpy as np
 
 #### Miscellaneous functions
 class ActivationFunction():
@@ -32,7 +31,7 @@ class ActivationFunction():
 
 class Sigmoid(ActivationFunction):
     def forward(self, z):
-        return 1.0/(1.0+np.exp(-z))
+        return 1.0/(1.0 + (-z).exp())
 
     def derivative(self, z):
         return self(z)*(1-self(z))
@@ -40,22 +39,10 @@ class Sigmoid(ActivationFunction):
     def __repr__(self):
         return "Sigmoid"
 
-# Not currently working.
-class ReLU(ActivationFunction):
-    def forward(self, z):
-        return np.maximum(0, z)
-
-    def derivative(self, z):
-        return (z > 0).astype(float)
-    
-class Tensor():
-    def __init__(self, data):
-        self.data = data
-
 
 class Network(object):
 
-    def __init__(self, sizes, activation_function='sigmoid'):
+    def __init__(self, sizes):
         """The list ``sizes`` contains the number of neurons in the
         respective layers of the network.  For example, if the list
         was [2, 3, 1] then it would be a three-layer network, with the
@@ -68,32 +55,24 @@ class Network(object):
         ever used in computing the outputs from later layers."""
         self.num_layers = len(sizes)
         self.sizes = sizes
-        self.biases = [np.random.randn(y, 1) for y in sizes[1:]]
-        self.weights = [np.random.randn(y, x)
+        self.biases = [Tensor.randn(y, 1) for y in sizes[1:]]
+        self.weights = [Tensor.randn(y, x)
                         for x, y in zip(sizes[:-1], sizes[1:])]
         
-        self.activation_function = ReLU() if activation_function == 'relu' else Sigmoid()
+        self.activation_function = Sigmoid()
 
-        if activation_function == 'relu':
-            print("Using He initialization for ReLU")
-            # He initialization for ReLU
-            # W ~ N(0, sqrt(2/n_in))
-            for i in range(len(self.weights)):
-                std = math.sqrt(2/self.weights[i].shape[1])  # shape[1] is n_in
-                self.weights[i] = self.weights[i] * std
-        else:
-            print("Using Xavier/Glorot initialization for sigmoid/tanh")
-            # #### Xavier/Glorot (for tanh/sigmoid)
-            # - **Normal**: $W \sim \mathcal{N}(0, \sqrt{\frac{2}{n_{in} + n_{out}}})$
-            for i in range(len(self.weights)):
-                std = math.sqrt(1/self.weights[i].shape[1])  # shape[1] is n_in
-                self.weights[i] = self.weights[i] * std
+        # Xavier/Glorot (for tanh/sigmoid)
+        # - **Normal**: $W \sim \mathcal{N}(0, \sqrt{\frac{2}{n_{in} + n_{out}}})$
+        print("Using Xavier/Glorot initialization for sigmoid")
+        for i in range(len(self.weights)):
+            std = math.sqrt(1/self.weights[i].shape[1])  # shape[1] is n_in
+            self.weights[i] = std *self.weights[i] * std
 
     
     def feedforward(self, a):
         """Return the output of the network if ``a`` is input."""
         for b, w in zip(self.biases, self.weights):
-            a = self.activation_function(np.dot(w, a)+b)
+            a = self.activation_function(w @ a + b)
         return a
 
     def SGD(self, training_data, epochs, mini_batch_size, eta,
@@ -133,8 +112,8 @@ class Network(object):
         gradient descent using backpropagation to a single mini batch.
         The ``mini_batch`` is a list of tuples ``(x, y)``, and ``eta``
         is the learning rate."""
-        nabla_b = [np.zeros(b.shape) for b in self.biases]
-        nabla_w = [np.zeros(w.shape) for w in self.weights]
+        nabla_b = [Tensor.zeros(b.shape) for b in self.biases]
+        nabla_w = [Tensor.zeros(w.shape) for w in self.weights]
         for x, y in mini_batch:
             delta_nabla_b, delta_nabla_w = self.backprop(x, y)
             nabla_b = [nb+dnb for nb, dnb in zip(nabla_b, delta_nabla_b)]
@@ -149,14 +128,14 @@ class Network(object):
         gradient for the cost function C_x.  ``nabla_b`` and
         ``nabla_w`` are layer-by-layer lists of numpy arrays, similar
         to ``self.biases`` and ``self.weights``."""
-        nabla_b = [np.zeros(b.shape) for b in self.biases]
-        nabla_w = [np.zeros(w.shape) for w in self.weights]
+        nabla_b = [Tensor.zeros(b.shape) for b in self.biases]
+        nabla_w = [Tensor.zeros(w.shape) for w in self.weights]
         # feedforward
         activation = x
         activations = [x] # list to store all the activations, layer by layer
         zs = [] # list to store all the z vectors, layer by layer
         for b, w in zip(self.biases, self.weights):
-            z = np.dot(w, activation)+b
+            z = w @ activation + b
             zs.append(z)
             activation = self.activation_function(z)
             activations.append(activation)
@@ -164,7 +143,7 @@ class Network(object):
         delta = self.cost_derivative(activations[-1], y) * \
             self.activation_function.derivative(zs[-1])
         nabla_b[-1] = delta
-        nabla_w[-1] = np.dot(delta, activations[-2].transpose())
+        nabla_w[-1] = delta @ activations[-2].transpose()
         # Note that the variable l in the loop below is used a little
         # differently to the notation in Chapter 2 of the book.  Here,
         # l = 1 means the last layer of neurons, l = 2 is the
@@ -174,9 +153,9 @@ class Network(object):
         for l in range(2, self.num_layers):
             z = zs[-l]
             sp = self.activation_function.derivative(z)
-            delta = np.dot(self.weights[-l+1].transpose(), delta) * sp
+            delta = self.weights[-l+1].transpose() @ delta * sp
             nabla_b[-l] = delta
-            nabla_w[-l] = np.dot(delta, activations[-l-1].transpose())
+            nabla_w[-l] = delta @ activations[-l-1].transpose()
         return (nabla_b, nabla_w)
 
     def cost_derivative(self, output_activations, y):
@@ -190,15 +169,6 @@ class Network(object):
         network outputs the correct result. Note that the neural
         network's output is assumed to be the index of whichever
         neuron in the final layer has the highest activation."""
-        test_results = [(np.argmax(self.feedforward(x)), y)
+        test_results = [(self.feedforward(x).argmax(), y)
                         for (x, y) in test_data]
         return sum(int(x == y) for (x, y) in test_results)
-    
-
-# def sigmoid(z):
-#     """The sigmoid function."""
-#     return 1.0/(1.0+np.exp(-z))
-
-# def sigmoid_prime(z):
-#     """Derivative of the sigmoid function."""
-#     return sigmoid(z)*(1-sigmoid(z))
