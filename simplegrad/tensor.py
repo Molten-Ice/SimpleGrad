@@ -143,6 +143,14 @@ class NumpyTensor():
         """Device parameter added for compatibility, but does nothing for numpy"""
         return self
 
+    def __pow__(self, other):
+        other_NumpyTensor = other.data if isinstance(other, NumpyTensor) else other
+        return NumpyTensor(self.data ** other_NumpyTensor)
+    
+    def __rpow__(self, other):
+        other_NumpyTensor = other.data if isinstance(other, NumpyTensor) else other
+        return NumpyTensor(other_NumpyTensor ** self.data)
+
 
 class TorchTensor():
     float32 = torch.float32
@@ -326,6 +334,14 @@ class TorchTensor():
         # Get the device from the first TorchTensor (if any have one)
         device = next((t.device for t in TorchTensors if isinstance(t, TorchTensor) and t.device), None)
         return TorchTensor(torch.stack(TorchTensor_data, dim=dim), device=device)
+
+    def __pow__(self, other):
+        other_TorchTensor = other.data if isinstance(other, TorchTensor) else other
+        return TorchTensor(self.data ** other_TorchTensor, device=self.device)
+    
+    def __rpow__(self, other):
+        other_TorchTensor = other.data if isinstance(other, TorchTensor) else other
+        return TorchTensor(other_TorchTensor ** self.data, device=self.device)
 
 
 class Tensor(TorchTensor if USE_TORCH else NumpyTensor):
