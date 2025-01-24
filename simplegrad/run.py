@@ -1,4 +1,4 @@
-import network
+from network import Network, Sequential, Linear, Sigmoid, evaluate, SGD
 import mnist_loader as mnist_loader
 from tensor import Tensor
 
@@ -7,13 +7,26 @@ Tensor.set_seed()
 device = Tensor.get_device()
 device = None
 training_data, validation_data, test_data = mnist_loader.load_data_wrapper(parent_dir=True, device=device, mini=True)
-net = network.Network([784, 10, 10]).to(device)
+sizes = [784, 10, 10]
+net = Network(sizes).to(device)
 # - 784 input neurons (28x28 pixels),  3 neurons in hidden layer, 10 output neurons (digits 0-9)
 
-net.SGD(training_data, epochs=1, mini_batch_size=10, eta=3.0, test_data=validation_data, test_interval=10)
+SGD(net, training_data, epochs=1, mini_batch_size=10, eta=3.0, test_data=validation_data, test_interval=10)
 
 # Building autograd type model structure.
+# print(f"Initial evaluation: {evaluate(net, test_data)} / {len(test_data)}")
 # net.update_mini_batch(training_data[:10], eta=3.0)
+print(f"Net 1 evaluation: {evaluate(net, test_data)} / {len(test_data)}")
+
+net2 = Sequential([
+    Linear(in_size, out_size, activation_function=Sigmoid()) 
+            for in_size, out_size in zip(sizes[:-1], sizes[1:])])
+
+for net_layer, (w, b) in zip(net2.layers, zip(net.weights, net.biases)):
+    net_layer.w = w
+    net_layer.b = b
+
+print(f"Net2 evaluation: {evaluate(net2, test_data)} / {len(test_data)}")
 
 # Group into NN layers (That's how the error term from Michael was defined.)
 # Create a graph based on NN layers.

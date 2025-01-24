@@ -38,6 +38,88 @@ class Sigmoid(ActivationFunction):
 
     def __repr__(self):
         return "Sigmoid"
+    
+class Module():
+    def forward(self, x):
+        raise NotImplementedError
+
+    def __call__(self, x):
+        return self.forward(x)
+    
+    def backward(self, x):
+        raise NotImplementedError
+
+
+class Linear(Module):
+    def __init__(self, input_size, output_size, activation_function=None):
+        self.w = Tensor.randn(output_size, input_size)
+        self.b = Tensor.randn(output_size, 1)
+        self.activation_function = activation_function
+
+        std = math.sqrt(1/input_size)  # shape[1] is n_in
+        self.w = std *self.w
+    
+    def forward(self, x):
+        out = self.w @ x + self.b
+        if self.activation_function:
+            out = self.activation_function(out)
+        return out
+    
+    def backward(self, x):
+        return x
+        # return self.activation_function.derivative(self.w @ x + self.b) * self.w
+
+class Sequential(Module):
+    def __init__(self, layers):
+        self.layers = layers
+
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        return x
+
+
+def SGD(net, training_data, epochs, mini_batch_size, eta,
+        test_data=None, test_interval=None):
+    """Train the neural network using mini-batch stochastic
+    gradient descent.  The ``training_data`` is a list of tuples
+    ``(x, y)`` representing the training inputs and the desired
+    outputs.  The other non-optional parameters are
+    self-explanatory.  If ``test_data`` is provided then the
+    network will be evaluated against the test data after each
+    epoch, and partial progress printed out.  This is useful for
+    tracking progress, but slows things down substantially."""
+
+    print(f"Initial evaluation: {evaluate(net, test_data)} / {len(test_data)}")
+
+    n = len(training_data)
+    for j in range(epochs):
+        time1 = time.time()
+        random.shuffle(training_data)
+        mini_batches = [
+            training_data[k:k+mini_batch_size]
+            for k in range(0, n, mini_batch_size)]
+        for k, mini_batch in enumerate(mini_batches):
+            xb, yb = map(lambda t: Tensor.stack(t, dim=0), zip(*mini_batch))
+            mini_batch_size = xb.shape[0]
+            scaled_eta = eta/len(mini_batch)
+            # Zero gradients (optimizer.zero_grad())
+
+            # Backpropagate (loss.backward())
+            nabla_b, nabla_w = net.backprop(xb, yb)
+
+            # Update weights and biases (optimizer.step())
+            net.weights = [w-scaled_eta*nw for w, nw in zip(net.weights, nabla_w)]
+            net.biases = [b-scaled_eta*nb for b, nb in zip(net.biases, nabla_b)]
+
+            if test_interval is not None and k % test_interval == 0:
+                print(f'[{k*mini_batch_size}/{n}]: {evaluate(net, test_data, batch_size=test_interval)} / {len(test_data)} correct')
+
+        if test_data:
+            print(f"Epoch {j}: {evaluate(net, test_data)} / {len(test_data)}, took {time.time()-time1:.2f} seconds")
+        else:
+            print(f"Epoch {j} complete in {time.time()-time1:.2f} seconds")
+
 
 
 class Network(object):
@@ -53,18 +135,20 @@ class Network(object):
         layer is assumed to be an input layer, and by convention we
         won't set any biases for those neurons, since biases are only
         ever used in computing the outputs from later layers."""
-        self.num_layers = len(sizes)
-        self.sizes = sizes
+
+
         self.biases = [Tensor.randn(y, 1) for y in sizes[1:]]
         self.weights = [Tensor.randn(y, x) for x, y in zip(sizes[:-1], sizes[1:])]
-        
         self.activation_function = Sigmoid()
+
+        self.nabla_b = [Tensor.zeros(b.shape) for b in self.biases]
+        self.nabla_w = [Tensor.zeros(w.shape) for w in self.weights] 
 
         # Xavier/Glorot (for tanh/sigmoid)
         # - **Normal**: $W \sim \mathcal{N}(0, \sqrt{\frac{2}{n_{in} + n_{out}}})$
         for i in range(len(self.weights)):
             std = math.sqrt(1/self.weights[i].shape[1])  # shape[1] is n_in
-            self.weights[i] = std *self.weights[i] * std
+            self.weights[i] = std *self.weights[i]
 
     
     def feedforward(self, a):
@@ -72,50 +156,9 @@ class Network(object):
         for b, w in zip(self.biases, self.weights):
             a = self.activation_function(w @ a + b)
         return a
-
-    def SGD(self, training_data, epochs, mini_batch_size, eta,
-            test_data=None, test_interval=None):
-        """Train the neural network using mini-batch stochastic
-        gradient descent.  The ``training_data`` is a list of tuples
-        ``(x, y)`` representing the training inputs and the desired
-        outputs.  The other non-optional parameters are
-        self-explanatory.  If ``test_data`` is provided then the
-        network will be evaluated against the test data after each
-        epoch, and partial progress printed out.  This is useful for
-        tracking progress, but slows things down substantially."""
-
-        print(f"Initial evaluation: {self.evaluate(test_data)} / {len(test_data)}")
-
-        n = len(training_data)
-        for j in range(epochs):
-            time1 = time.time()
-            random.shuffle(training_data)
-            mini_batches = [
-                training_data[k:k+mini_batch_size]
-                for k in range(0, n, mini_batch_size)]
-            for k, mini_batch in enumerate(mini_batches):
-                self.update_mini_batch(mini_batch, eta)
-                if test_interval is not None and k % test_interval == 0:
-                    print(f'[{k*mini_batch_size}/{n}]: {self.evaluate(test_data, batch_size=test_interval)} / {len(test_data)} correct')
-
-            if test_data:
-                print(f"Epoch {j}: {self.evaluate(test_data)} / {len(test_data)}, took {time.time()-time1:.2f} seconds")
-            else:
-                print(f"Epoch {j} complete in {time.time()-time1:.2f} seconds")
-
-
-    def update_mini_batch(self, mini_batch, eta):
-        """Update the network's weights and biases by applying
-        gradient descent using backpropagation to a single mini batch.
-        The ``mini_batch`` is a list of tuples ``(x, y)``, and ``eta``
-        is the learning rate."""
-        scaled_eta = eta/len(mini_batch)
-
-        xb = Tensor.stack([x for x, _ in mini_batch], dim=0)
-        yb = Tensor.stack([y for _, y in mini_batch], dim=0)
-        nabla_b, nabla_w = self.backprop(xb, yb)
-        self.weights = [w-scaled_eta*nw for w, nw in zip(self.weights, nabla_w)]
-        self.biases = [b-scaled_eta*nb for b, nb in zip(self.biases, nabla_b)]
+    
+    def __call__(self, x):
+        return self.feedforward(x)
         
 
     def backprop(self, x, y):
@@ -157,7 +200,7 @@ class Network(object):
         # second-last layer, and so on.  It's a renumbering of the
         # scheme in the book, used here to take advantage of the fact
         # that Python can use negative indices in lists.
-        for l in range(2, self.num_layers):
+        for l in range(2, len(self.weights)+1):
             z = zs[-l]
             sp = self.activation_function.derivative(z)
             delta = self.weights[-l+1].transpose() @ delta * sp
@@ -173,29 +216,6 @@ class Network(object):
         return (output_activations-y)
     
 
-    def evaluate(self, test_data, batch_size=128):
-        """Return the number of test inputs for which the neural
-        network outputs the correct result. Note that the neural
-        network's output is assumed to be the index of whichever
-        neuron in the final layer has the highest activation.
-        
-        Args:
-            test_data: List of (x, y) tuples containing test inputs and labels
-            batch_size: Size of batches to process at once (default: 32)
-        """
-        
-        correct = 0
-        for i in range(0, len(test_data), batch_size):
-            batch = test_data[i:i + batch_size]
-            x = Tensor.stack([x for x, _ in batch])
-            y = Tensor.stack([y for _, y in batch]).squeeze(dim=1).tolist()
-            
-            outputs = self.feedforward(x)
-            predictions = outputs.argmax(dim=1).squeeze(dim=1).tolist()
-            correct += sum(int(pred == label) for pred, label in zip(predictions, y))
-            
-        return correct
-
     def to(self, device):
         """Move all network parameters to specified device (e.g. 'cuda' or 'cpu')"""
         print(f"Moving model to device: {device}")
@@ -204,3 +224,27 @@ class Network(object):
             self.weights = [w.to(device) for w in self.weights]
             self.biases = [b.to(device) for b in self.biases]
         return self
+
+
+def evaluate(net, test_data, batch_size=128):
+    """Return the number of test inputs for which the neural
+    network outputs the correct result. Note that the neural
+    network's output is assumed to be the index of whichever
+    neuron in the final layer has the highest activation.
+    
+    Args:
+        test_data: List of (x, y) tuples containing test inputs and labels
+        batch_size: Size of batches to process at once (default: 32)
+    """
+    
+    correct = 0
+    for i in range(0, len(test_data), batch_size):
+        batch = test_data[i:i + batch_size]
+        x = Tensor.stack([x for x, _ in batch])
+        y = Tensor.stack([y for _, y in batch]).squeeze(dim=1).tolist()
+        
+        outputs = net(x)
+        predictions = outputs.argmax(dim=1).squeeze(dim=1).tolist()
+        correct += sum(int(pred == label) for pred, label in zip(predictions, y))
+        
+    return correct
