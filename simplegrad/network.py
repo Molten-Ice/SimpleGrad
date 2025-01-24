@@ -114,7 +114,6 @@ class Network(object):
         xb = Tensor.stack([x for x, _ in mini_batch], dim=0)
         yb = Tensor.stack([y for _, y in mini_batch], dim=0)
         nabla_b, nabla_w = self.backprop(xb, yb)
-        
         self.weights = [w-scaled_eta*nw for w, nw in zip(self.weights, nabla_w)]
         self.biases = [b-scaled_eta*nb for b, nb in zip(self.biases, nabla_b)]
         
@@ -130,11 +129,13 @@ class Network(object):
         activation = x
         activations = [x] # list to store all the activations, layer by layer
         zs = [] # list to store all the z vectors, layer by layer
-        for b, w in zip(self.biases, self.weights):
+        for b, w in zip(self.biases, self.weights): # 2 layers
             z = w @ activation + b
             zs.append(z)
             activation = self.activation_function(z)
             activations.append(activation)
+
+            
         # backward pass
         delta = self.cost_derivative(activations[-1], y) * \
             self.activation_function.derivative(zs[-1])
