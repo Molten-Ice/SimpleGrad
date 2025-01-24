@@ -109,7 +109,7 @@ class MSE(LossFunction):
 
 
 class Sequential(Module):
-    def __init__(self, layers, loss_function=None):
+    def __init__(self, layers, loss_function=MSE()):
         self.layers = layers
         self.loss_function = loss_function
 
@@ -165,27 +165,14 @@ def SGD(net, training_data, epochs, mini_batch_size, eta,
             xb, yb = map(lambda t: Tensor.stack(t, dim=0), zip(*mini_batch))
             mini_batch_size = xb.shape[0]
             scaled_eta = eta/len(mini_batch)
-            if original:
-                # Zero gradients (optimizer.zero_grad())
-                for nb in net.nabla_b:
-                    nb.data *= 0
-                for nw in net.nabla_w:
-                    nw.data *= 0
 
-                # Backpropagate (loss.backward())
-                net.backprop(xb, yb)
+            net.zero_grad() # Should be optimizer
 
-                # Update weights and biases (optimizer.step())
-                net.weights = [w-scaled_eta*nw for w, nw in zip(net.weights, net.nabla_w)]
-                net.biases = [b-scaled_eta*nb for b, nb in zip(net.biases, net.nabla_b)]
-            else:
-                net.zero_grad() # Should be optimizer
+            logits, loss = net.forward(xb, yb)
+            # print(f"Loss: {loss.data:.5f}")
 
-                logits, loss = net.forward(xb, yb)
-                # print(f"Loss: {loss.data:.5f}")
-
-                net.backward(xb) # Should be loss.backward() not net.backward(logits)
-                net.step(scaled_eta)
+            net.backward(xb) # Should be loss.backward() not net.backward(logits)
+            net.step(scaled_eta)
 
             if test_interval is not None and k % test_interval == 0:
                 print(f'[{k*mini_batch_size}/{n}]: {evaluate(net, test_data, batch_size=test_interval)} / {len(test_data)} correct')
@@ -195,93 +182,6 @@ def SGD(net, training_data, epochs, mini_batch_size, eta,
         else:
             print(f"Epoch {j} complete in {time.time()-time1:.2f} seconds")
 
-
-
-class Network(object):
-
-    def __init__(self, sizes):
-        """Note that the first layer is assumed to be an input layer, 
-        and by convention we won't set any biases for those neurons."""
-
-        self.biases = [Tensor.randn(y, 1) for y in sizes[1:]]
-        self.weights = [Tensor.randn(y, x) for x, y in zip(sizes[:-1], sizes[1:])]
-        self.activation_function = Sigmoid()
-
-        self.nabla_b = [Tensor.zeros(b.shape) for b in self.biases]
-        self.nabla_w = [Tensor.zeros(w.shape) for w in self.weights] 
-
-        # Xavier/Glorot (for tanh/sigmoid)
-        # - **Normal**: $W \sim \mathcal{N}(0, \sqrt{\frac{2}{n_{in} + n_{out}}})$
-        for i in range(len(self.weights)):
-            std = math.sqrt(1/self.weights[i].shape[1])  # shape[1] is n_in
-            self.weights[i] = std *self.weights[i]
-
-    
-    def feedforward(self, a):
-        """Return the output of the network if ``a`` is input."""
-        for b, w in zip(self.biases, self.weights):
-            a = self.activation_function(w @ a + b)
-        return a
-    
-    def __call__(self, x):
-        return self.feedforward(x)
-        
-
-    def backprop(self, x, y):
-        """Return a tuple ``(nabla_b, nabla_w)`` representing the
-        gradient for the cost function C_x.  ``nabla_b`` and
-        ``nabla_w`` are layer-by-layer lists of numpy arrays, similar
-        to ``self.biases`` and ``self.weights``."""
-        # x.shape: torch.Size([10, 784, 1]), y.shape: torch.Size([10, 10, 1]) 
-        # feedforward
-        activation = x
-        activations = [x] # list to store all the activations, layer by layer
-        zs = [] # list to store all the z vectors, layer by layer
-        for b, w in zip(self.biases, self.weights): # 2 layers
-            z = w @ activation + b
-            zs.append(z)
-            activation = self.activation_function(z)
-            activations.append(activation)
-
-        # backward pass
-        delta = self.cost_derivative(activations[-1], y) * \
-            self.activation_function.derivative(zs[-1])
-        self.nabla_b[-1] += delta.sum(dim=0)
-
-
-        # delta.shape: torch.Size([10, 10, 1]), activations[-2].shape: torch.Size([10, 10, 1])
-        # activations[-2].transpose().shape: torch.Size([10, 10, 1])
-
-        self.nabla_w[-1] += (delta @ activations[-2].transpose(-2, -1)).sum(dim=0)
-        # nabla_w[-1] = delta @ activations[-2].transpose()
-        # Note that the variable l in the loop below is used a little
-        # differently to the notation in Chapter 2 of the book.  Here,
-        # l = 1 means the last layer of neurons, l = 2 is the
-        # second-last layer, and so on.  It's a renumbering of the
-        # scheme in the book, used here to take advantage of the fact
-        # that Python can use negative indices in lists.
-        for l in range(2, len(self.weights)+1):
-            z = zs[-l]
-            sp = self.activation_function.derivative(z)
-            delta = self.weights[-l+1].transpose(-2, -1) @ delta * sp
-            self.nabla_b[-l] += delta.sum(dim=0)
-            self.nabla_w[-l] += (delta @ activations[-l-1].transpose(-2, -1)).sum(dim=0)
-
-
-    def cost_derivative(self, output_activations, y):
-        """Return the vector of partial derivatives \partial C_x /
-        \partial a for the output activations."""
-        return (output_activations-y)
-    
-
-    def to(self, device):
-        """Move all network parameters to specified device (e.g. 'cuda' or 'cpu')"""
-        print(f"Moving model to device: {device}")
-        self.device = device
-        if device:
-            self.weights = [w.to(device) for w in self.weights]
-            self.biases = [b.to(device) for b in self.biases]
-        return self
 
 
 def evaluate(net, test_data, batch_size=128):
