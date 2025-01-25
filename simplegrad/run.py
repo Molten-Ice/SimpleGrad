@@ -1,4 +1,4 @@
-from network import Sequential, Linear, Sigmoid, SGD
+from network import Sequential, Linear, Sigmoid, SGD, MSE
 import mnist_loader as mnist_loader
 from tensor import Tensor
 
@@ -10,12 +10,13 @@ training_data, validation_data, test_data = mnist_loader.load_data_wrapper(paren
 
 Tensor.set_seed()
 sizes = [784, 10, 10]
+# sizes = [784, 3, 3, 10]
 net = Sequential([
     Linear(in_size, out_size, activation_function=Sigmoid()) 
-            for in_size, out_size in zip(sizes[:-1], sizes[1:])])
+            for in_size, out_size in zip(sizes[:-1], sizes[1:])] + [MSE()])
 # - 784 input neurons (28x28 pixels),  3 neurons in hidden layer, 10 output neurons (digits 0-9)
 
-SGD(net, training_data, epochs=1, mini_batch_size=10, eta=3.0, test_data=validation_data, test_interval=10)
+SGD(net, training_data, epochs=1, mini_batch_size=3, eta=3.0, test_data=validation_data, test_interval=10)
 
 # Group into NN layers (That's how the error term from Michael was defined.)
 # Create a graph based on NN layers.

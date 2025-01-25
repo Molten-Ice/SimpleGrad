@@ -20,6 +20,9 @@ from tensor import Tensor
 
 #### Miscellaneous functions
 class ActivationFunction():
+    def __init__(self):
+        self.func_type = 'activation'
+
     def forward(self, z):
         raise NotImplementedError
 
@@ -28,6 +31,7 @@ class ActivationFunction():
 
     def __call__(self, z):
         return self.forward(z)
+
 
 class Sigmoid(ActivationFunction):
     def forward(self, z):
@@ -55,12 +59,14 @@ class Linear(Module):
         self.w = Tensor.randn(output_size, input_size)
         self.b = Tensor.randn(output_size, 1)
         self.activation_function = activation_function
+        self.func_type = 'linear'
+
 
         # Really shoud be in a metadata class.
         self.metadata = {
             'nabla_w': Tensor.zeros(self.w.shape),
             'nabla_b': Tensor.zeros(self.b.shape),
-            'delta': Tensor.zeros(self.b.shape),
+            'delta': None,
             'z': None,
             'a': None,
         }
@@ -75,18 +81,19 @@ class Linear(Module):
             a = self.activation_function(z)
         self.metadata['a'] = a
         return a
-    
-    def backward(self, x):
-        pass
+
 
     def zero_grad(self):
         self.metadata['nabla_w'] *= 0
         self.metadata['nabla_b'] *= 0
-        self.metadata['delta'] *= 0
+        self.metadata['delta'] = None
 
     def step(self, eta):
         self.w -= eta * self.metadata['nabla_w']
         self.b -= eta * self.metadata['nabla_b']
+
+    def backward(self, x):
+        pass
 
 
 class LossFunction():
@@ -109,44 +116,84 @@ class MSE(LossFunction):
 
 
 class Sequential(Module):
-    def __init__(self, layers, loss_function=MSE()):
+    def __init__(self, layers):
         self.layers = layers
-        self.loss_function = loss_function
 
     def forward(self, x, y=None):
-        for layer in self.layers:
+        for layer in self.layers[:-1]:
             x = layer(x)
+        loss_function = self.layers[-1]
         if y is None:
             return x
-        loss = self.loss_function(x, y)
+        loss = loss_function(x, y)
         return x, loss
 
-    def backward(self, x):
-        # HERE
-        layer = self.layers[-1]
-        delta = self.loss_function.metadata['derivative'] * \
-            layer.activation_function.derivative(layer.metadata['z'])
-        
-        layer.metadata['nabla_b'] = delta.sum(dim=0)
-        layer.metadata['nabla_w'] = (delta @ self.layers[-2].metadata['a'].transpose(-2, -1)).sum(dim=0)
 
-        for l in range(2, len(self.layers)+1):
+    def backward(self, x):
+        """
+w ─┐
+   @ ─┐
+x ─┘  │
+      + ── z ── φ ── a
+b ────┘
+        """
+        loss_function = self.layers[-1]
+        
+        # For the last layer, break down the operations:
+        layer = self.layers[-2]
+        
+        # 1. Derivative of loss with respect to final output
+        d_loss = loss_function.metadata['derivative']
+        
+        # 2. Derivative of activation function
+        d_activation = layer.activation_function.derivative(layer.metadata['z']) # ((3, 10, 1))
+        
+        # 3. Chain rule: combine loss derivative and activation derivative
+        layer.metadata['delta'] = d_loss * d_activation
+
+        layer = self.layers[-2]
+        activation = self.layers[-3].metadata['a']
+        layer.metadata['nabla_b'] += layer.metadata['delta'].sum(dim=0)
+        layer.metadata['nabla_w'] += (layer.metadata['delta'] @ activation.transpose(-2, -1)).sum(dim=0)
+
+
+        # For each previous layer
+        for l in range(3, len(self.layers)+1):
             layer = self.layers[-l]
-            sp = layer.activation_function.derivative(layer.metadata['z'])
-            delta = self.layers[-l+1].w.transpose(-2, -1) @ delta * sp
-            layer.metadata['nabla_b'] += delta.sum(dim=0)
-            if l == len(self.layers):
-                activation = x
-            else:
-                activation = self.layers[-l-1].metadata['a']
-            layer.metadata['nabla_w'] += (delta @ activation.transpose(-2, -1)).sum(dim=0)
+            next_layer = self.layers[-l+1]
+            
+            # 1. Derivative of activation function for current layer
+            d_activation = layer.activation_function.derivative(layer.metadata['z'])
+            
+            # 2. Propagate gradient through weights (matrix multiply)
+            d_weights = next_layer.w.transpose(-2, -1) @ next_layer.metadata['delta']
+
+            # Activation (z), through weights. then through activation function.
+            
+            # 3. Chain rule: combine weight gradient and activation derivative
+            layer.metadata['delta'] = d_weights * d_activation
+
+           # Update gradients for each layer
+
+            # Get activations from previous layer (or input for first layer)
+            activation = x if l == len(self.layers) else self.layers[-l-1].metadata['a']
+            
+            # 1. Sum gradients across batch dimension for bias
+            layer.metadata['nabla_b'] += layer.metadata['delta'].sum(dim=0) # grad is distributed so this is grad of z (and also b)
+            
+            # 2. Compute weight gradients using outer product
+            # (batch_delta @ batch_activation^T) and sum across batch
+            layer.metadata['nabla_w'] += (layer.metadata['delta'] @ activation.transpose(-2, -1)).sum(dim=0)
+
+        # import sys; sys.exit()
+
 
     def zero_grad(self):
-        for layer in self.layers:
+        for layer in self.layers[:-1]:
             layer.zero_grad()
 
     def step(self, eta):
-        for layer in self.layers:
+        for layer in self.layers[:-1]:
             layer.step(eta)
 
 
