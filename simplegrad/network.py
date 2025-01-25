@@ -137,55 +137,25 @@ x ─┘  │
       + ── z ── φ ── a
 b ────┘
         """
-        loss_function = self.layers[-1]
-        
-        # For the last layer, break down the operations:
-        layer = self.layers[-2]
-        
-        # 1. Derivative of loss with respect to final output
-        d_loss = loss_function.metadata['derivative']
-        
-        # 2. Derivative of activation function
-        d_activation = layer.activation_function.derivative(layer.metadata['z']) # ((3, 10, 1))
-        
-        # 3. Chain rule: combine loss derivative and activation derivative
-        layer.metadata['delta'] = d_loss * d_activation
+        for l in range(2, len(self.layers)+1):
+            # x1. Backpropagate to previous layer
+            if l == 2: # Base case.
+                loss_function = self.layers[-1]
+                grad = loss_function.metadata['derivative']
+            else:
+                next_layer = self.layers[-l+1]
+                grad = next_layer.w.transpose(-2, -1) @ grad # Shape remains unchanged.
 
-        layer = self.layers[-2]
-        activation = self.layers[-3].metadata['a']
-        layer.metadata['nabla_b'] += layer.metadata['delta'].sum(dim=0)
-        layer.metadata['nabla_w'] += (layer.metadata['delta'] @ activation.transpose(-2, -1)).sum(dim=0)
-
-
-        # For each previous layer
-        for l in range(3, len(self.layers)+1):
+            # x2. Backpropagate through activation function
             layer = self.layers[-l]
-            next_layer = self.layers[-l+1]
-            
-            # 1. Derivative of activation function for current layer
-            d_activation = layer.activation_function.derivative(layer.metadata['z'])
-            
-            # 2. Propagate gradient through weights (matrix multiply)
-            d_weights = next_layer.w.transpose(-2, -1) @ next_layer.metadata['delta']
+            grad *= layer.activation_function.derivative(layer.metadata['z'])
 
-            # Activation (z), through weights. then through activation function.
-            
-            # 3. Chain rule: combine weight gradient and activation derivative
-            layer.metadata['delta'] = d_weights * d_activation
+            # x3a. Backpropagate to bias (leaf node)
+            layer.metadata['nabla_b'] += grad.sum(dim=0) # sum(dim=0) squashes batches.
 
-           # Update gradients for each layer
-
-            # Get activations from previous layer (or input for first layer)
+            # x3b. Backpropagate to weights (leaf node)
             activation = x if l == len(self.layers) else self.layers[-l-1].metadata['a']
-            
-            # 1. Sum gradients across batch dimension for bias
-            layer.metadata['nabla_b'] += layer.metadata['delta'].sum(dim=0) # grad is distributed so this is grad of z (and also b)
-            
-            # 2. Compute weight gradients using outer product
-            # (batch_delta @ batch_activation^T) and sum across batch
-            layer.metadata['nabla_w'] += (layer.metadata['delta'] @ activation.transpose(-2, -1)).sum(dim=0)
-
-        # import sys; sys.exit()
+            layer.metadata['nabla_w'] += (grad @  activation.transpose(-2, -1)).sum(dim=0)
 
 
     def zero_grad(self):
