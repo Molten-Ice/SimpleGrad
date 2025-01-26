@@ -1,4 +1,4 @@
-from tensor import Tensor
+from .tensor import Tensor
 
 class Parameter(): # micrograd but for custom Tensor class.
     def __init__(self, data: Tensor, _children=(), _op=''):
