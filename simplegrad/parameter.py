@@ -27,11 +27,31 @@ class Parameter(): # micrograd but for custom Tensor class.
 
         return out
     
+    def __mul__(self, other):
+        other = other if isinstance(other, Parameter) else Parameter(other)
+        out = Parameter(self.data * other.data, (self, other), '*')
+        
+        def _backward():
+            self._accumulate(other.data * out.grad)
+            other._accumulate(self.data * out.grad)
+        out._backward = _backward
+        
+        return out
+    
     def __matmul__(self, other):
         out = Parameter(self.data @ other.data, (self, other), '@')
         def _backward():
             self._accumulate(out.grad @ other.data.transpose(-2, -1))
             other._accumulate(self.data.transpose(-2, -1) @ out.grad)
+        out._backward = _backward
+        return out
+    
+    def sum(self):
+        out = Parameter(self.data.sum(), (self,), 'sum')
+        def _backward():
+            # Gradient flows back equally to all input elements
+            # Broadcasting the scalar gradient to match input shape
+            self._accumulate(out.grad) # Tensor.ones_like(self.data) * 
         out._backward = _backward
         return out
     
@@ -89,7 +109,6 @@ class Parameter(): # micrograd but for custom Tensor class.
         return other + (-self)
 
     def __rmul__(self, other): # other * self
-        print(f'{other} * {self}')
         return self * other
 
     def __truediv__(self, other): # self / other
@@ -100,4 +119,8 @@ class Parameter(): # micrograd but for custom Tensor class.
 
     def __repr__(self):
         return f"Parameter(data={self.data}, grad={self.grad})"
+    
+    @property
+    def shape(self):
+        return self.data.shape if self.data is not None else None
     

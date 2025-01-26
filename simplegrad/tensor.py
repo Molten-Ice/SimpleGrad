@@ -159,7 +159,16 @@ class NumpyTensor():
         other_data = other.data if isinstance(other, NumpyTensor) else other
         return NumpyTensor(self.data > other_data)
     
-  
+    def astype(self, dtype):
+        """Convert tensor to a different dtype"""
+        return NumpyTensor(self.data.astype(dtype))
+
+    @staticmethod
+    def ones_like(tensor, dtype=None, device=None):
+        """Returns a tensor of ones with the same shape as input tensor"""
+        if isinstance(tensor, NumpyTensor):
+            tensor = tensor.data
+        return NumpyTensor(np.ones_like(tensor, dtype=dtype))
 
 class TorchTensor():
     float32 = torch.float32
@@ -352,6 +361,23 @@ class TorchTensor():
         other_TorchTensor = other.data if isinstance(other, TorchTensor) else other
         return TorchTensor(other_TorchTensor ** self.data, device=self.device)
 
+    def astype(self, dtype):
+        """Convert tensor to a different dtype"""
+        # Map Python types to torch types
+        dtype_map = {
+            int: torch.int64,
+            float: torch.float32,
+            bool: torch.bool
+        }
+        torch_dtype = dtype_map.get(dtype, dtype)
+        return TorchTensor(self.data.to(dtype=torch_dtype), device=self.device)
+
+    @staticmethod
+    def ones_like(tensor, dtype=None, device=None):
+        """Returns a tensor of ones with the same shape as input tensor"""
+        if isinstance(tensor, TorchTensor):
+            tensor = tensor.data
+        return TorchTensor(torch.ones_like(tensor, dtype=dtype, device=device), device=device)
 
 class Tensor(TorchTensor if USE_TORCH else NumpyTensor):
     pass

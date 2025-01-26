@@ -21,16 +21,18 @@ class Linear(Module):
           + ── z ── φ ── a
     b ────┘
     """
-    def __init__(self, input_size, output_size, activation = 'sigmoid'):
+    def __init__(self, input_size, output_size, activation = 'sigmoid', no_init = False):
         self.w = Parameter(Tensor.randn(output_size, input_size), _op='w')
         self.b = Parameter(Tensor.randn(output_size, 1), _op='b')
         self.act = activation
         self.input_size = input_size
         self.output_size = output_size
 
+
         # Initialize weights (biases already initialized to 0).
-        if activation == 'sigmoid':
-            
+        if no_init:
+            pass
+        elif activation == 'sigmoid':
             std = math.sqrt(1/input_size) # Xavier/Glorot initialization
             self.w.data = std * self.w.data # Don't include in autograd graph
             print(f'Sigmoid initialized for layer {input_size} -> {output_size} (std: {std:.5f})')
@@ -43,7 +45,7 @@ class Linear(Module):
     
     def forward(self, x):
         z = self.w @ x + self.b
-        return getattr(z, self.act)() if self.act else z
+        return getattr(z, self.act)() if self.act is not None else z
 
     def parameters(self):
         return [self.w, self.b]

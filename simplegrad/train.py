@@ -26,9 +26,10 @@ def SGD(model, training_data, epochs, mini_batch_size, eta,
             logits = model(xb)
             loss = logits.mse(yb)
 
-            print(f'logits.data.shape: {logits.data.shape}')
-            print(f'yb.data.shape: {yb.data.shape}')
-            # print(f"Loss: {loss.data:.5f}")
+            # print(f'xb.data.shape: {xb.data.shape}')
+            # print(f'logits.data.shape: {logits.data.shape}')
+            # print(f'yb.data.shape: {yb.data.shape}')
+            # print(f'loss: {loss}')
 
             model.zero_grad() # Should be optimizer
             loss.backward() # Should be loss.backward() not net.backward(logits)
