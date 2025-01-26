@@ -151,6 +151,15 @@ class NumpyTensor():
         other_NumpyTensor = other.data if isinstance(other, NumpyTensor) else other
         return NumpyTensor(other_NumpyTensor ** self.data)
 
+    def __lt__(self, other):
+        other_data = other.data if isinstance(other, NumpyTensor) else other
+        return NumpyTensor(self.data < other_data)
+
+    def __gt__(self, other):
+        other_data = other.data if isinstance(other, NumpyTensor) else other
+        return NumpyTensor(self.data > other_data)
+    
+  
 
 class TorchTensor():
     float32 = torch.float32

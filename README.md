@@ -11,6 +11,14 @@ Based on:
 GPU used: NVIDIA GeForce GTX 1650 Ti Max-Q GPU
 
 
+```
+└── SimpleGrad
+    ├── simplegrad/    # Core library implementation
+    ├── demos/         # Example usage and demonstrations
+    └── data/          # Example datasets
+```
+
+
 Baseline:
 [2900/3000]: 474 / 1000 correct
 Epoch 0: 4939 / 10000, took 1.95 seconds

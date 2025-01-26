@@ -46,7 +46,14 @@ class Parameter(): # micrograd but for custom Tensor class.
     def sigmoid(self):
         out = Parameter(1.0/(1.0 + (-self.data).exp()), (self,), 'sigmoid')
         def _backward():
-            self._accumulate(out.grad * (1-out.data) * out.data)
+            self._accumulate((1-out.data) * out.data * out.grad)
+        out._backward = _backward
+        return out
+    
+    def relu(self):
+        out = Parameter(self.data * (self.data > 0.0), (self,), 'relu')
+        def _backward():
+            self._accumulate((out.data > 0.0) * out.grad)
         out._backward = _backward
         return out
 
@@ -92,14 +99,5 @@ class Parameter(): # micrograd but for custom Tensor class.
         return other * self**-1
 
     def __repr__(self):
-        return f"Value(data={self.data}, grad={self.grad})"
+        return f"Parameter(data={self.data}, grad={self.grad})"
     
-
-    # def relu(self):
-    #     out = Parameter(0 if self.data < 0 else self.data, (self,), 'ReLU')
-
-    #     def _backward():
-    #         self.grad += (out.data > 0) * out.grad
-    #     out._backward = _backward
-
-    #     return out

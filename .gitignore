@@ -1,3 +1,4 @@
 repos/
 __pycache__/
 simplegrad/.venv.
+bash_commands.sh
