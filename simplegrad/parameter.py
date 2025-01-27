@@ -56,7 +56,7 @@ class Parameter(): # micrograd but for custom Tensor class.
         return out
     
 
-    def mse(self, target):
+    def mse(self, target): # Feel like .mean() here isn't correctly backpropagated.
         out = Parameter(0.5 * ((self.data - target.data) ** 2).mean(), (self,), 'mse')
         def _backward():
             self._accumulate((self.data - target.data) * out.grad)
