@@ -32,3 +32,9 @@ model = Sequential([
 eta = 3
 SGD(model, training_data, epochs=1, mini_batch_size=10, eta=eta, test_data=validation_data, test_interval=10)
 
+# TODO:
+# Create SVM classifier
+# add cross-entropy cost function,
+# add regularization,
+# add convolutional, maxpooling,
+# add tanh
