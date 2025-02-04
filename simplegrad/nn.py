@@ -30,11 +30,15 @@ class Linear(Module):
 
 
         # Initialize weights (biases already initialized to 0).
+        # return
         if no_init:
             pass
+        elif activation == None:
+            print(f'No activation for layer {input_size} -> {output_size}')
         elif activation == 'sigmoid':
             std = math.sqrt(1/input_size) # Xavier/Glorot initialization
             self.w.data = std * self.w.data # Don't include in autograd graph
+
             print(f'Sigmoid initialized for layer {input_size} -> {output_size} (std: {std:.5f})')
         elif activation == 'relu':
             std = math.sqrt(2/input_size)  # He initialization

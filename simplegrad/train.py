@@ -4,9 +4,10 @@ from .tensor import Tensor
 from .parameter import Parameter
 from .evals import evaluate
 
-def SGD(model, training_data, epochs, mini_batch_size, eta,
-        test_data=None, test_interval=None):
+def SGD(model, training_data, epochs, mini_batch_size, lr,
+        test_data=None, test_interval=None, loss_func='mse'):
     print(f"Initial evaluation: {evaluate(model, test_data)} / {len(test_data)}")
+
 
     n = len(training_data)
     for j in range(epochs):
@@ -19,23 +20,15 @@ def SGD(model, training_data, epochs, mini_batch_size, eta,
             # print('*'*50, f'mini_batch {k}', '*'*50)
             xb, yb = map(lambda t: Tensor.stack(t, dim=0), zip(*mini_batch))
             xb, yb = Parameter(xb, _op='xb'), Parameter(yb, _op='yb')  # Add this line
-            
             mini_batch_size = xb.data.shape[0]
-            lr = eta/len(mini_batch)
 
             logits = model(xb)
-            loss = logits.mse(yb)
-
-            # print(f'xb.data.shape: {xb.data.shape}')
-            # print(f'yb.data.shape: {yb.data.shape}')
-            # print(f'logits.data.shape: {logits.data.shape}')
-
-            # print(f'loss: {loss}')
+            loss = getattr(logits, loss_func)(yb)
 
             model.zero_grad() # Should be optimizer
             loss.backward() # Should be loss.backward() not net.backward(logits)
             for p in model.parameters():
-                p.data -= lr * p.grad.sum(dim=0)
+                p.data -= (lr/mini_batch_size) * p.grad.sum(dim=0)
 
             if test_interval is not None and k % test_interval == 0:
                 print(f'[{k*mini_batch_size}/{n}]: {evaluate(model, test_data, batch_size=test_interval)} / {len(test_data)} correct')

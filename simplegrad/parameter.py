@@ -57,11 +57,26 @@ class Parameter(): # micrograd but for custom Tensor class.
     
 
     def mse(self, target): # Feel like .mean() here isn't correctly backpropagated.
-        out = Parameter(0.5 * ((self.data - target.data) ** 2).mean(), (self,), 'mse')
+        out = Parameter(0.5 * ((self.data - target.data)**2).sum(), (self,), 'mse')
         def _backward():
             self._accumulate((self.data - target.data) * out.grad)
         out._backward = _backward
         return out
+    
+    def cross_entropy(self, target, eps=1e-7):
+        # return np.sum(np.nan_to_num(-y*np.log(a)-(1-y)*np.log(1-a)))
+
+        # eps is small constant to prevent log(0)
+        clipped_data = self.data.clip(eps, 1 - eps)
+        out = Parameter(Tensor.nan_to_num(-target.data * clipped_data.log() - (1-target.data) * (1-clipped_data).log()).sum(), (self,), 'cross_entropy')
+
+        def _backward():
+            grad = (clipped_data - target.data) / (clipped_data * (1 - clipped_data))
+            self._accumulate(grad * out.grad)
+        out._backward = _backward
+        return out
+
+
 
     def sigmoid(self):
         out = Parameter(1.0/(1.0 + (-self.data).exp()), (self,), 'sigmoid')

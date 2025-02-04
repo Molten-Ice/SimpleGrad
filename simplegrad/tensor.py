@@ -170,6 +170,25 @@ class NumpyTensor():
             tensor = tensor.data
         return NumpyTensor(np.ones_like(tensor, dtype=dtype))
 
+    def norm(self):
+        """Returns the L2 (Euclidean) norm of the tensor."""
+        return NumpyTensor(np.sqrt(np.sum(self.data * self.data)))
+
+    def log(self):
+        """Returns the natural logarithm of the tensor elements"""
+        return NumpyTensor(np.log(self.data))
+    
+    @staticmethod
+    def nan_to_num(tensor, nan=0.0, posinf=None, neginf=None):
+        """Replace NaN, positive infinity, and negative infinity with specified values"""
+        if isinstance(tensor, NumpyTensor):
+            tensor = tensor.data
+        return NumpyTensor(np.nan_to_num(tensor, nan=nan, posinf=posinf, neginf=neginf))
+
+    def clip(self, min_val, max_val):
+        """Clips tensor values between min_val and max_val"""
+        return NumpyTensor(np.clip(self.data, min_val, max_val))
+
 class TorchTensor():
     float32 = torch.float32
     int64 = torch.int64
@@ -378,6 +397,25 @@ class TorchTensor():
         if isinstance(tensor, TorchTensor):
             tensor = tensor.data
         return TorchTensor(torch.ones_like(tensor, dtype=dtype, device=device), device=device)
+
+    def norm(self):
+        """Returns the L2 (Euclidean) norm of the tensor."""
+        return TorchTensor(torch.norm(self.data), device=self.device)
+
+    def log(self):
+        """Returns the natural logarithm of the tensor elements"""
+        return TorchTensor(torch.log(self.data), device=self.device)
+    
+    @staticmethod
+    def nan_to_num(tensor, nan=0.0, posinf=None, neginf=None):
+        """Replace NaN, positive infinity, and negative infinity with specified values"""
+        if isinstance(tensor, TorchTensor):
+            tensor = tensor.data
+        return TorchTensor(torch.nan_to_num(tensor, nan=nan, posinf=posinf, neginf=neginf))
+
+    def clip(self, min_val, max_val):
+        """Clips tensor values between min_val and max_val"""
+        return TorchTensor(torch.clamp(self.data, min_val, max_val), device=self.device)
 
 class Tensor(TorchTensor if USE_TORCH else NumpyTensor):
     pass
