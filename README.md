@@ -22,6 +22,4 @@ Based on:
 ![Decision Boundary Animation](assets/decision_boundary.gif)
 
 ## MNIST Results
-[demo/mnist.ipynb](demos/mnist.ipynb)
-
-
+[demo/mnist.ipynb (95% accuracy in 1 epoch)](demos/mnist.ipynb)

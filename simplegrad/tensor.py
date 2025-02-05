@@ -68,8 +68,8 @@ class NumpyTensor():
     
     @staticmethod
     def set_seed(seed=3):
-        np.random.seed(seed)
         random.seed(seed)
+        np.random.seed(seed)
     
     # Right-side operations
     def __radd__(self, other):
@@ -275,7 +275,6 @@ class TorchTensor():
     
     @staticmethod
     def set_seed(seed=3):
-        np.random.seed(seed)
         random.seed(seed)
         torch.manual_seed(seed)
     
