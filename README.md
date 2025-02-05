@@ -8,7 +8,6 @@ Based on:
    - [Original repo](https://github.com/mnielsen/neural-networks-and-deep-learning)
    - [Python 3 fork](https://github.com/unexploredtest/neural-networks-and-deep-learning.git)
 
-GPU used: NVIDIA GeForce GTX 1650 Ti Max-Q GPU
 
 
 ```
@@ -18,15 +17,11 @@ GPU used: NVIDIA GeForce GTX 1650 Ti Max-Q GPU
     └── data/          # Example datasets
 ```
 
-Decision Boundary Animation:
-![Decision Boundary Animation](assets/decision_boundary_video.mp4)
+## Decision Boundary Animation
+[demo/decision_boundary.ipynb](demos/decision_boundary.ipynb)
+![Decision Boundary Animation](assets/decision_boundary.gif)
+
+## MNIST Results
+[demo/mnist.ipynb](demos/mnist.ipynb)
 
 
-Baseline:
-[2900/3000]: 474 / 1000 correct
-Epoch 0: 4939 / 10000, took 1.95 seconds
-
-Adding Xavier/Glorot (for Sigmoid activation)
-
-[2900/3000]: 798 / 1000 correct
-Epoch 0: 8146 / 10000, took 2.57 seconds
