@@ -12,6 +12,44 @@ class Module():
 
     def parameters(self):
         return []
+    
+    def train(self):
+        self.training = True
+        for attr in self.__dict__.values():
+            if isinstance(attr, Module):
+                attr.train()
+            elif isinstance(attr, (list, tuple)):
+                for item in attr:
+                    if isinstance(item, Module):
+                        item.train()
+    
+    def eval(self):
+        self.training = False
+        for attr in self.__dict__.values():
+            if isinstance(attr, Module):
+                attr.eval()
+            elif isinstance(attr, (list, tuple)):
+                for item in attr:
+                    if isinstance(item, Module):
+                        item.eval()
+    
+
+class Dropout(Module):
+    def __init__(self, p=0.5):
+        self.p = p
+        self.training = True
+        
+    def forward(self, x):
+        if not self.training or self.p == 0:
+            return x
+        
+        mask = (Tensor.randn(*x.shape) > self.p).astype(Tensor.float32)
+        scale = 1.0 / (1.0 - self.p)
+        
+        return x.dropout(mask, scale)
+
+    def __repr__(self):
+        return f"Dropout(p={self.p}, training={self.training})"
 
 class Linear(Module):
     """
@@ -20,14 +58,17 @@ class Linear(Module):
     x ─┘  │
           + ── z ── φ ── a
     b ────┘
+    Input -> Linear (Wx + b) -> Activation -> Dropout -> Next Layer
     """
-    def __init__(self, input_size, output_size, activation = 'sigmoid', no_init = False):
-        self.w = Parameter(Tensor.randn(output_size, input_size), _op='w')
+    def __init__(self, input_size, output_size, activation = 'sigmoid', dropout = 0, no_init = False):
+        self.w = Parameter(Tensor.randn(output_size, input_size), _op='w', is_weight=True)
         self.b = Parameter(Tensor.randn(output_size, 1), _op='b')
         self.act = activation
+        self.dropout = Dropout(dropout) if dropout > 0 else None
         self.input_size = input_size
         self.output_size = output_size
 
+        print(f'Linear layer {input_size} -> {output_size}, activation: {activation}, dropout: {dropout}')
 
         # Initialize weights (biases already initialized to 0).
         # return
@@ -49,7 +90,8 @@ class Linear(Module):
     
     def forward(self, x):
         z = self.w @ x + self.b
-        return getattr(z, self.act)() if self.act is not None else z
+        a = getattr(z, self.act)() if self.act is not None else z
+        return self.dropout(a) if self.dropout else a
 
     def parameters(self):
         return [self.w, self.b]
