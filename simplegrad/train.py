@@ -4,11 +4,29 @@ from .tensor import Tensor
 from .parameter import Parameter
 from .evals import evaluate
 
+
+class Optimizer:
+    def __init__(self, parameters, lr):
+        self.parameters = parameters
+        self.lr = lr
+
+    def zero_grad(self):
+        for p in self.parameters():
+            p.grad = None
+
+    def step(self):
+        for p in self.parameters():  # Call parameters() each time
+            if p.grad is not None:
+                p.data -= self.lr * p.grad.sum(dim=0)
+
+
 def SGD(model, training_data, epochs, mini_batch_size, lr,
-        test_data=None, test_interval=None, loss_func='mse',
-        lambda_reg = 0.1):
+        test_data=[], test_interval=None, loss_func='mse',
+        lambda_reg = 0):
     model.eval()
     print(f"Initial evaluation: {evaluate(model, test_data)} / {len(test_data)}")
+
+    optimizer = Optimizer(model.parameters, lr) # Note model.parameters is a bound method, not a list.
 
     model.train()
     n = len(training_data)
@@ -24,29 +42,27 @@ def SGD(model, training_data, epochs, mini_batch_size, lr,
             xb, yb = Parameter(xb, _op='xb'), Parameter(yb, _op='yb')  # Add this line
             mini_batch_size = xb.data.shape[0]
 
-            logits = model(xb)
-            # Note: doesn't include regularization loss (which is directly adjusted in backprop in (scale_factor * p.data) below.
-            loss = getattr(logits, loss_func)(yb)
+            optimizer.zero_grad()
+            output = model(xb)
 
-            model.zero_grad() # Should be optimizer
-            loss.backward() # Should be loss.backward() not net.backward(logits)
+            loss = getattr(output, loss_func)(yb)
+            if lambda_reg > 0:
+                base_loss, l2_loss = loss, calculate_l2_loss(model, mini_batch_size, lambda_reg)
+                loss += l2_loss
 
-            scale_factor = 1- lr*lambda_reg/mini_batch_size
-            for p in model.parameters():
-                if p.is_weight:
-                    p.data = (scale_factor * p.data) - lr * p.grad.sum(dim=0)
-                else:
-                    p.data -= lr * p.grad.sum(dim=0)
+            loss.backward()
+            optimizer.step()
 
             if test_interval is not None and k % test_interval == 0:
-                model.eval()
-                print(f'[{k*mini_batch_size}/{n}]: {evaluate(model, test_data, batch_size=test_interval)} / {len(test_data)} correct')
-                model.train()
+                weight_sizes = [round(p.data.abs().mean().data.item(), 5) for p in model.parameters() if p.is_weight]
+                extra = f' -> base_loss: {base_loss.data.data:.5f}' + (f', l2_loss: {l2_loss.data.data:.5f}' if lambda_reg > 0 else '') + f', weight_sizes: {weight_sizes}'
+                print(f'[{k*mini_batch_size}/{n}]: {evaluate(model, test_data, batch_size=test_interval)} / {len(test_data)} correct{extra}')
 
-        if test_data:
-            model.eval()
-            print(f"Epoch {j}: {evaluate(model, test_data)} / {len(test_data)}, took {time.time()-time1:.2f} seconds")
-            model.train()
-        else:
-            print(f"Epoch {j} complete in {time.time()-time1:.2f} seconds")
-
+        print(f"Epoch {j}: {evaluate(model, test_data)} / {len(test_data)}, took {time.time()-time1:.2f} seconds")
+   
+def calculate_l2_loss(model, mini_batch_size, lambda_reg):
+    l2_loss = Parameter(Tensor(0.0))
+    for p in model.parameters():
+        if p.is_weight:
+            l2_loss = l2_loss + (lambda_reg / (2 * mini_batch_size)) * (p * p).sum()
+    return l2_loss

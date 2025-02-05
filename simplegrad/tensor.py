@@ -189,6 +189,10 @@ class NumpyTensor():
         """Clips tensor values between min_val and max_val"""
         return NumpyTensor(np.clip(self.data, min_val, max_val))
 
+    def abs(self):
+        """Returns the absolute value of each element in the tensor"""
+        return NumpyTensor(np.abs(self.data))
+
 class TorchTensor():
     float32 = torch.float32
     int64 = torch.int64
@@ -416,6 +420,10 @@ class TorchTensor():
     def clip(self, min_val, max_val):
         """Clips tensor values between min_val and max_val"""
         return TorchTensor(torch.clamp(self.data, min_val, max_val), device=self.device)
+
+    def abs(self):
+        """Returns the absolute value of each element in the tensor"""
+        return TorchTensor(torch.abs(self.data), device=self.device)
 
 class Tensor(TorchTensor if USE_TORCH else NumpyTensor):
     pass

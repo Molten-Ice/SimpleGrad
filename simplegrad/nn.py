@@ -42,11 +42,13 @@ class Dropout(Module):
     def forward(self, x):
         if not self.training or self.p == 0:
             return x
-        
+    
         mask = (Tensor.randn(*x.shape) > self.p).astype(Tensor.float32)
         scale = 1.0 / (1.0 - self.p)
-        
-        return x.dropout(mask, scale)
+
+        mask = Parameter(mask, _op='mask')
+        return x * mask * scale
+
 
     def __repr__(self):
         return f"Dropout(p={self.p}, training={self.training})"
@@ -68,10 +70,8 @@ class Linear(Module):
         self.input_size = input_size
         self.output_size = output_size
 
-        print(f'Linear layer {input_size} -> {output_size}, activation: {activation}, dropout: {dropout}')
-
+        print(f'Linear layer {input_size} -> {output_size}, activation: {activation}, dropout: {dropout}' + ' no init' if no_init else '')
         # Initialize weights (biases already initialized to 0).
-        # return
         if no_init:
             pass
         elif activation == None:
@@ -79,7 +79,6 @@ class Linear(Module):
         elif activation == 'sigmoid':
             std = math.sqrt(1/input_size) # Xavier/Glorot initialization
             self.w.data = std * self.w.data # Don't include in autograd graph
-
             print(f'Sigmoid initialized for layer {input_size} -> {output_size} (std: {std:.5f})')
         elif activation == 'relu':
             std = math.sqrt(2/input_size)  # He initialization

@@ -52,7 +52,7 @@ class Parameter(): # micrograd but for custom Tensor class.
         def _backward():
             # Gradient flows back equally to all input elements
             # Broadcasting the scalar gradient to match input shape
-            self._accumulate(out.grad) # Tensor.ones_like(self.data) * 
+            self._accumulate(Tensor.ones_like(self.data) * out.grad)
         out._backward = _backward
         return out
     
@@ -76,16 +76,6 @@ class Parameter(): # micrograd but for custom Tensor class.
             grad = (clipped_data - target.data) / (clipped_data * (1 - clipped_data))
             self._accumulate(grad * out.grad / batch_size)
         out._backward = _backward
-        return out
-    
-    def dropout(self, mask, scale):
-        out = Parameter(self.data * mask * scale, (self,), 'dropout')
-        # backward: d(output)/d(input) = mask * scale
-        
-        def _backward():
-            self._accumulate(mask * scale * out.grad)
-        out._backward = _backward
-    
         return out
 
 

@@ -18,6 +18,9 @@ GPU used: NVIDIA GeForce GTX 1650 Ti Max-Q GPU
     └── data/          # Example datasets
 ```
 
+Decision Boundary Animation:
+![Decision Boundary Animation](assets/decision_boundary_video.mp4)
+
 
 Baseline:
 [2900/3000]: 474 / 1000 correct
