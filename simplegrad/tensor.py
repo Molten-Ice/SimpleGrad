@@ -3,7 +3,7 @@ import random
 import torch
 import numpy as np
 
-USE_TORCH = False
+USE_TORCH = True
 
 class NumpyTensor():
     float32 = np.float32
@@ -18,6 +18,7 @@ class NumpyTensor():
                 self.data = data
         else:
             self.data = np.array(data, dtype=dtype)
+        self.device = device
 
     def __repr__(self):
         return f"NumpyTensor({self.data})"
@@ -204,18 +205,18 @@ class TorchTensor():
             # print("Warning: Data is already a PyTorch TorchTensor")
             if dtype and data.dtype != dtype:
                 print(f"Warning: Data dtype {data.dtype} does not match requested dtype {dtype}, converting to {dtype}")
-                self.data = data.to(dtype=dtype)
+                self.data = data.to(dtype=dtype, device=device)
             else:
-                self.data = data
+                self.data = data.to(device=device) if device else data
         else:
-            if dtype and device:
-                self.data = torch.Tensor(data, dtype=dtype, device=device)
-            elif dtype:
-                self.data = torch.Tensor(data, dtype=dtype)
-            elif device:
-                self.data = torch.Tensor(data, device=device)
+            # Create tensor on CPU first, then move to device if specified
+            if dtype:
+                self.data = torch.tensor(data, dtype=dtype)
             else:
-                self.data = torch.Tensor(data)
+                self.data = torch.tensor(data)
+            
+            if device:
+                self.data = self.data.to(device)
 
     def __repr__(self):
         return f"TorchTensor({self.data})"
@@ -232,6 +233,9 @@ class TorchTensor():
     def __matmul__(self, other):
         """Matrix multiplication using @ operator."""
         other_TorchTensor = other.data if isinstance(other, TorchTensor) else other
+        # Ensure both tensors are on the same device
+        if isinstance(other_TorchTensor, torch.Tensor) and other_TorchTensor.device != self.data.device:
+            other_TorchTensor = other_TorchTensor.to(self.data.device)
         return TorchTensor(torch.matmul(self.data, other_TorchTensor), device=self.device)
     
     # def dot(self, other):
@@ -338,8 +342,11 @@ class TorchTensor():
     # Helper methods
     @staticmethod
     def get_device():
-        return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        print(f"Using device: {device}")
+        return device
     
+
     def tolist(self):
         """Convert TorchTensor to a Python list."""
         return self.data.cpu().detach().numpy().tolist()

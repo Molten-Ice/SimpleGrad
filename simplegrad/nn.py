@@ -13,8 +13,14 @@ class Module():
     def parameters(self):
         return []
     
+    def to(self, device):
+        for p in self.parameters():
+            p.data = p.data.to(device)
+        return self
+    
     def train(self):
         self.training = True
+
         for attr in self.__dict__.values():
             if isinstance(attr, Module):
                 attr.train()

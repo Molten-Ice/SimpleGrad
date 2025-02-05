@@ -26,6 +26,8 @@ def SGD(model, training_data, epochs, mini_batch_size, lr,
     model.eval()
     print(f"Initial evaluation: {evaluate(model, test_data)} / {len(test_data)}")
 
+    # x_all, y_all = map(lambda t: Tensor.stack(t, dim=0), zip(*training_data))
+
     optimizer = Optimizer(model.parameters, lr) # Note model.parameters is a bound method, not a list.
 
     model.train()

@@ -1,24 +1,28 @@
 from .tensor import Tensor
+from .tensor import TorchTensor, NumpyTensor # Only used for type checking.
 
 class Parameter(): # micrograd but for custom Tensor class.
     def __init__(self, data: Tensor, _children=(), _op='', is_weight=False):
+        assert isinstance(data, (Tensor, TorchTensor, NumpyTensor)), f"data must be a Tensor (type: {type(data)}), op: {_op}, data: {data}"
         self.data = data
         self.grad = None # Now a matrix not a scalar.
         # internal variables used for autograd graph construction
         self._backward = lambda: None
+
         self._prev = set(_children)
         self._op = _op # the op that produced this node, for graphviz / debugging / etc
         self.is_weight = is_weight
 
     def _accumulate(self, value):
         """Helper method to initialize grad if None or accumulate if existing"""
+
         if self.grad is None:
             self.grad = value
         else:
             self.grad += value
 
     def __add__(self, other):
-        other = other if isinstance(other, Parameter) else Parameter(other)
+        other = map_other_to_parameter(other, self.data.device)
         out = Parameter(self.data + other.data, (self, other), '+')
 
         def _backward():
@@ -29,9 +33,9 @@ class Parameter(): # micrograd but for custom Tensor class.
         return out
     
     def __mul__(self, other):
-        other = other if isinstance(other, Parameter) else Parameter(other)
+        other = map_other_to_parameter(other, self.data.device)
         out = Parameter(self.data * other.data, (self, other), '*')
-        
+
         def _backward():
             self._accumulate(other.data * out.grad)
             other._accumulate(self.data * out.grad)
@@ -52,7 +56,7 @@ class Parameter(): # micrograd but for custom Tensor class.
         def _backward():
             # Gradient flows back equally to all input elements
             # Broadcasting the scalar gradient to match input shape
-            self._accumulate(Tensor.ones_like(self.data) * out.grad)
+            self._accumulate(Tensor.ones_like(self.data, device=self.data.device) * out.grad)
         out._backward = _backward
         return out
     
@@ -136,7 +140,19 @@ class Parameter(): # micrograd but for custom Tensor class.
     def __repr__(self):
         return f"Parameter(data={self.data}, grad={self.grad})"
     
+    def to(self, device):
+        self.data = self.data.to(device)
+    
     @property
     def shape(self):
         return self.data.shape if self.data is not None else None
     
+
+def map_other_to_parameter(other, device=None):
+    if isinstance(other, Parameter):
+        return other
+    elif isinstance(other, (int, float)):
+        return Parameter(Tensor(other, device=device))
+    elif isinstance(other, (Tensor, TorchTensor, NumpyTensor)):
+        return Parameter(Tensor(other, device=device))
+    raise ValueError(f"map_other_to_parameter | invalid type: {type(other)}")
