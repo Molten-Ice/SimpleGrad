@@ -1,0 +1,10 @@
+# $ python network2.py 
+# Epoch 0 training complete in 12.39 seconds
+# Accuracy on evaluation data: 9320 / 10000
+
+# lr, loss_func, lambda_reg, epochs, dropout = 3, 'mse', 0, 1, 0 # Epoch 0: 819 / 1000, took 1.16 seconds
+# lr, loss_func, lambda_reg , epochs, dropout = 0.5, 'cross_entropy', 0, 1, 0 # Epoch 0: 851 / 1000, took 1.42 seconds (base_loss: 1.307331, l2_loss: 0.020721)
+# lr, loss_func, lambda_reg , epochs, dropout = 0.5, 'cross_entropy', 0.002, 1, 0 # Epoch 0: 840 / 1000, took 1.93 seconds (base_loss: 0.92043, l2_loss: 0.02926)
+# lr, loss_func, lambda_reg , epochs, dropout = 1, 'cross_entropy', 0.002, 3, 0.3 # Epoch 2: 831 / 1000, took 5.92 seconds (base_loss: 1.79011, l2_loss: 0.05985)
+# lr, loss_func, lambda_reg , epochs, dropout = 0.5, 'cross_entropy', 0, 5, 0 # Epoch 4: 909 / 1000, took 3.12 seconds ( base_loss: 0.09795, weight_sizes: [0.06274, 0.48611])
+# lr, loss_func, lambda_reg , epochs, dropout = 0.5, 'cross_entropy', 3e-4, 5, 0 # Epoch 4: 904 / 1000, took 5.35 seconds (base_loss: 0.14461, l2_loss: 0.01248, weight_sizes: [0.05545, 0.44892])

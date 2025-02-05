@@ -8,7 +8,6 @@ class Parameter(): # micrograd but for custom Tensor class.
         self.grad = None # Now a matrix not a scalar.
         # internal variables used for autograd graph construction
         self._backward = lambda: None
-
         self._prev = set(_children)
         self._op = _op # the op that produced this node, for graphviz / debugging / etc
         self.is_weight = is_weight
@@ -74,7 +73,7 @@ class Parameter(): # micrograd but for custom Tensor class.
 
         # eps is small constant to prevent log(0)
         clipped_data = self.data.clip(eps, 1 - eps)
-        out = Parameter(Tensor.nan_to_num(-target.data * clipped_data.log() - (1-target.data) * (1-clipped_data).log()).sum() / batch_size, (self,), 'cross_entropy')
+        out = Parameter((-target.data * clipped_data.log() - (1-target.data) * (1-clipped_data).log()).nan_to_num().sum() / batch_size, (self,), 'cross_entropy')
 
         def _backward():
             grad = (clipped_data - target.data) / (clipped_data * (1 - clipped_data))

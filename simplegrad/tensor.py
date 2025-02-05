@@ -179,12 +179,9 @@ class NumpyTensor():
         """Returns the natural logarithm of the tensor elements"""
         return NumpyTensor(np.log(self.data))
     
-    @staticmethod
-    def nan_to_num(tensor, nan=0.0, posinf=None, neginf=None):
+    def nan_to_num(self, nan=0.0, posinf=None, neginf=None):
         """Replace NaN, positive infinity, and negative infinity with specified values"""
-        if isinstance(tensor, NumpyTensor):
-            tensor = tensor.data
-        return NumpyTensor(np.nan_to_num(tensor, nan=nan, posinf=posinf, neginf=neginf))
+        return NumpyTensor(np.nan_to_num(self.data, nan=nan, posinf=posinf, neginf=neginf))
 
     def clip(self, min_val, max_val):
         """Clips tensor values between min_val and max_val"""
@@ -193,6 +190,10 @@ class NumpyTensor():
     def abs(self):
         """Returns the absolute value of each element in the tensor"""
         return NumpyTensor(np.abs(self.data))
+
+    def __getitem__(self, idx):
+        """Support for tensor indexing/slicing"""
+        return NumpyTensor(self.data[idx])
 
 class TorchTensor():
     float32 = torch.float32
@@ -233,9 +234,6 @@ class TorchTensor():
     def __matmul__(self, other):
         """Matrix multiplication using @ operator."""
         other_TorchTensor = other.data if isinstance(other, TorchTensor) else other
-        # Ensure both tensors are on the same device
-        if isinstance(other_TorchTensor, torch.Tensor) and other_TorchTensor.device != self.data.device:
-            other_TorchTensor = other_TorchTensor.to(self.data.device)
         return TorchTensor(torch.matmul(self.data, other_TorchTensor), device=self.device)
     
     # def dot(self, other):
@@ -416,12 +414,9 @@ class TorchTensor():
         """Returns the natural logarithm of the tensor elements"""
         return TorchTensor(torch.log(self.data), device=self.device)
     
-    @staticmethod
-    def nan_to_num(tensor, nan=0.0, posinf=None, neginf=None):
+    def nan_to_num(self, nan=0.0, posinf=None, neginf=None):
         """Replace NaN, positive infinity, and negative infinity with specified values"""
-        if isinstance(tensor, TorchTensor):
-            tensor = tensor.data
-        return TorchTensor(torch.nan_to_num(tensor, nan=nan, posinf=posinf, neginf=neginf))
+        return TorchTensor(torch.nan_to_num(self.data, nan=nan, posinf=posinf, neginf=neginf), device=self.device)
 
     def clip(self, min_val, max_val):
         """Clips tensor values between min_val and max_val"""
@@ -430,6 +425,10 @@ class TorchTensor():
     def abs(self):
         """Returns the absolute value of each element in the tensor"""
         return TorchTensor(torch.abs(self.data), device=self.device)
+
+    def __getitem__(self, idx):
+        """Support for tensor indexing/slicing"""
+        return TorchTensor(self.data[idx], device=self.device)
 
 class Tensor(TorchTensor if USE_TORCH else NumpyTensor):
     pass
